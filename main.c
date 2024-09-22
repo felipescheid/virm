@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <assert.h>
+#include <inttypes.h>
 
 #define VIRM_STACK_CAPACITY 1024
 
@@ -82,8 +83,9 @@ void virm_dump(FILE *stream, const Virm *virm)
 {
 	fprintf(stream, "Stack:\n");
 	if (virm->stack_size > 0) {
+		// the PRId64 macro from <inttypes.h> ensures the correct format specifier for int64_t for the system
 		for (size_t i = 0; i < virm->stack_size; ++i) {
-			fprintf(stream, " %ld\n", virm->stack[i]);
+			fprintf(stream, " %" PRId64 "\n", virm->stack[i]);
 		}
 	} else {
 		fprintf(stream, " [Empty] \n");
@@ -104,7 +106,7 @@ Inst program[] = {
 	MAKE_INST_PLUS,
 };
 
-int main()
+int main(void)
 {
 	virm_dump(stdout, &virm);
 	for (size_t i = 0; i < ARRAY_SIZE(program); ++i) {
