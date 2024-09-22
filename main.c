@@ -1,15 +1,33 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
+#include <assert.h>
 
-#define VIRM_STACK_CAPACITY 1024
+#define VIRM_STACK_CAPACITY 1
 
 typedef enum {
-	TRAP_OK = 0,
-	TRAP_STACK_OVERFLOW,
-	TRAP_STACK_UNDERFLOW,
-	TRAP_ILLEGAL_INST
-} Trap;
+	ERR_OK = 0,
+	ERR_STACK_OVERFLOW,
+	ERR_STACK_UNDERFLOW,
+	ERR_ILLEGAL_INST
+} Err;
+
+const char *err_as_cstr(Err err)
+{
+	switch(err) {
+	case ERR_OK:
+		return "ERR_OK";
+	case ERR_STACK_OVERFLOW:
+		return "ERR_STACK_OVERFLOW";
+	case ERR_STACK_UNDERFLOW:
+		return "ERR_STACK_UNDERFLOW";
+	case ERR_ILLEGAL_INST:
+		return "ERR_ILLEGAL_INST";
+	default:
+		assert(0 && "err_as_cstr: Unreachable");
+	}
+}
+	
 
 typedef int64_t Word;
 
@@ -30,71 +48,73 @@ typedef struct {
 	Word operand;
 } Inst;
 
-Inst inst_push(Word operand)
-{
-	return (Inst) {
-		.type = INST_PUSH,
-		.operand = operand
-	};
-}
+#define MAKE_INST_PUSH(value) {.type = INST_PUSH, .operand = (value)}
+#define MAKE_INST_PLUS {.type = INST_PLUS}
 
-Inst inst_plus()
+Err virm_execute_inst(Virm *virm, Inst inst)
 {
-	return (Inst) {
-		.type = INST_PLUS
-	};
-}
-
-Trap virm_execute_inst(Virm *virm, Inst inst)
-{
-	switch (inst.type) {
-	// The arrow operator is used to access members of a structure through a pointer
-	// The dot operator is used to access members of a structure directly
+	switch(inst.type) {
 	case INST_PUSH:
-		if (virm->stack_size > VIRM_STACK_CAPACITY) {
-			return TRAP_STACK_OVERFLOW;
+		if (virm->stack_size >= VIRM_STACK_CAPACITY) {
+			return ERR_STACK_OVERFLOW;
 		}
 		virm->stack[virm->stack_size++] = inst.operand;
 		break;
 
 	case INST_PLUS:
 		if (virm->stack_size < 2) {
-			return TRAP_STACK_UNDERFLOW;
+			return ERR_STACK_UNDERFLOW;
 		}
 		virm->stack[virm->stack_size - 2] += virm->stack[virm->stack_size - 1];
 		virm->stack_size -= 1;
 		break;
 
 	default:
-		return TRAP_ILLEGAL_INST;
+		return ERR_ILLEGAL_INST;
 
 	}
 
-	return TRAP_OK;
+	return ERR_OK;
 }
 
 // const specifies that the function can read the virm obj but not change it
-void virm_dump(const Virm *virm)
+void virm_dump(FILE *stream, const Virm *virm)
 {
-	printf("Stack:\n");
+	fprintf(stream, "Stack:\n");
 	if (virm->stack_size > 0) {
 		for (size_t i = 0; i < virm->stack_size; ++i) {
-			printf(" %ld\n", virm->stack[i]);
+			fprintf(stream, " %ld\n", virm->stack[i]);
 		}
 	} else {
-		printf("[Empty] \n");
+		fprintf(stream, " [Empty] \n");
 	}
 }
 
+// In C, all array elements are stored one after another in memory. Since all elements are of the same type, they will
+// have the same number of bites. This is why dividing the total size of the array by the size of the first element
+// gives us the number of elements in the array
+#define ARRAY_SIZE(xs) (sizeof(xs) / sizeof((xs)[0]))
+
 Virm virm = {0};
+
+Inst program[] = {
+	MAKE_INST_PUSH(18),
+	MAKE_INST_PUSH(18),
+	MAKE_INST_PUSH(18),
+	MAKE_INST_PLUS,
+};
 
 int main()
 {
-	virm_dump(&virm);
-	virm_execute_inst(&virm, inst_push(18));
-	virm_dump(&virm);
-	virm_execute_inst(&virm, inst_push(18));
-	virm_dump(&virm);
-	virm_execute_inst(&virm, inst_push(18));
+	virm_dump(stdout, &virm);
+	for (size_t i = 0; i < ARRAY_SIZE(program); ++i) {
+		Err err = virm_execute_inst(&virm, program[i]);
+		if (err != ERR_OK) {
+			fprintf(stderr, "ERROR: %s\n", err_as_cstr(err));
+			virm_dump(stderr, &virm);
+			exit(1);
+		} 
+	}
+	virm_dump(stdout, &virm);
 	return 0;
 }
