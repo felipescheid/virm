@@ -3,7 +3,7 @@
 #include <stdint.h>
 #include <assert.h>
 
-#define VIRM_STACK_CAPACITY 1
+#define VIRM_STACK_CAPACITY 1024
 
 typedef enum {
 	ERR_OK = 0,
